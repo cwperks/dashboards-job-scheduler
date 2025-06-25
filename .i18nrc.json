@@ -1,0 +1,7 @@
+{
+  "prefix": "dashboardsJobScheduler",
+  "paths": {
+    "dashboardsJobScheduler": "."
+  },
+  "translations": ["translations/ja-JP.json"]
+}
