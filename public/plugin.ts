@@ -1,3 +1,18 @@
+/*
+ *   Copyright OpenSearch Contributors
+ *
+ *   Licensed under the Apache License, Version 2.0 (the "License").
+ *   You may not use this file except in compliance with the License.
+ *   A copy of the License is located at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *   or in the "license" file accompanying this file. This file is distributed
+ *   on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ *   express or implied. See the License for the specific language governing
+ *   permissions and limitations under the License.
+ */
+
 import { i18n } from '@osd/i18n';
 import { AppMountParameters, CoreSetup, CoreStart, Plugin } from '../../../src/core/public';
 import {
@@ -13,7 +28,7 @@ export class DashboardsJobSchedulerPlugin
     // Register an application into the side navigation menu
     core.application.register({
       id: 'dashboardsJobScheduler',
-      title: "Schedule",
+      title: 'Schedule',
       async mount(params: AppMountParameters) {
         // Load application bundle
         const { renderApp } = await import('./application');
