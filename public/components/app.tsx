@@ -19,7 +19,7 @@ import {
 import { CoreStart } from '../../../../src/core/public';
 import { NavigationPublicPluginStart } from '../../../../src/plugins/navigation/public';
 
-import { PLUGIN_ID, PLUGIN_NAME } from '../../common';
+import { PLUGIN_ID } from '../../common';
 
 interface DashboardsJobSchedulerAppDeps {
   basename: string;
@@ -58,7 +58,7 @@ export const DashboardsJobSchedulerApp = ({
         <>
           <navigation.ui.TopNavMenu
             appName={PLUGIN_ID}
-            showSearchBar={true}
+            showSearchBar={false}
             useDefaultBehaviors={true}
           />
           <EuiPage restrictWidth="1000px">
@@ -69,7 +69,7 @@ export const DashboardsJobSchedulerApp = ({
                     <FormattedMessage
                       id="dashboardsJobScheduler.helloWorldText"
                       defaultMessage="{name}"
-                      values={{ name: PLUGIN_NAME }}
+                      values={{ name: "Schedule" }}
                     />
                   </h1>
                 </EuiTitle>

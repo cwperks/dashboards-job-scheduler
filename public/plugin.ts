@@ -13,7 +13,7 @@ export class DashboardsJobSchedulerPlugin
     // Register an application into the side navigation menu
     core.application.register({
       id: 'dashboardsJobScheduler',
-      title: PLUGIN_NAME,
+      title: "Schedule",
       async mount(params: AppMountParameters) {
         // Load application bundle
         const { renderApp } = await import('./application');
