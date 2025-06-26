@@ -95,7 +95,7 @@ export const DashboardsJobSchedulerApp = ({
                     <h2>
                       <FormattedMessage
                         id="dashboardsJobScheduler.congratulationsTitle"
-                        defaultMessage="Congratulations, you have successfully created a new OpenSearch Dashboards Plugin!"
+                        defaultMessage="Congratulations, you have changed the dashboard!"
                       />
                     </h2>
                   </EuiTitle>
