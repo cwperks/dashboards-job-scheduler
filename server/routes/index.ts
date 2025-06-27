@@ -13,6 +13,7 @@
  *   permissions and limitations under the License.
  */
 
+import { schema } from '@osd/config-schema';
 import { IRouter } from '../../../../src/core/server';
 
 export function defineRoutes(router: IRouter) {
@@ -38,10 +39,12 @@ export function defineRoutes(router: IRouter) {
     async (context, request, response) => {
       try {
         const client = context.core.opensearch.client.asCurrentUser;
-        const result = await client.transport.request({
+        
+        const requestOptions: any = {
           method: 'GET',
           path: '/_plugins/_job_scheduler/api/jobs'
-        });
+        };
+        const result = await client.transport.request(requestOptions);
         return response.ok({ body: result.body });
       } catch (error) {
         return response.customError({
@@ -51,4 +54,29 @@ export function defineRoutes(router: IRouter) {
       }
     }
   );
+
+  router.get(
+    {
+      path: '/api/dashboards_job_scheduler/jobs/by_node',
+      validate: false,
+    },
+    async (context, request, response) => {
+      try {
+        const client = context.core.opensearch.client.asCurrentUser;
+        
+        const requestOptions: any = {
+          method: 'GET',
+          path: '/_plugins/_job_scheduler/api/jobs?by_node'
+        };
+        const result = await client.transport.request(requestOptions);
+        return response.ok({ body: result.body });
+      } catch (error) {
+        return response.customError({
+          statusCode: error.statusCode || 500,
+          body: error.message
+        });
+      }
+    }
+  );
+
 }
