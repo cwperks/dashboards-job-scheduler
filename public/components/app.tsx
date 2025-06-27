@@ -52,6 +52,12 @@ export const DashboardsJobSchedulerApp = ({
   // Use React hooks to manage state.
   const [timestamp, setTimestamp] = useState<string | undefined>();
 
+  const [jobs, setJobs] = useState<any>();
+
+  const convertResponseToText = (response: any): string => {
+    return JSON.stringify(response, null, 2);
+  };
+
   const onClickHandler = () => {
     // Use the core http service to make a response to the server API.
     http.get('/api/dashboards_job_scheduler/example').then((res) => {
@@ -59,10 +65,29 @@ export const DashboardsJobSchedulerApp = ({
       // Use the core notifications service to display a success message.
       notifications.toasts.addSuccess(
         i18n.translate('dashboardsJobScheduler.dataUpdated', {
-          defaultMessage: 'Data updated',
+          defaultMessage: 'Data updated time now',
         })
       );
     });
+  };
+
+  const getJobsHandler = () => {
+    // Use the core http service to make a response to the server API.
+    http.get('/api/dashboards_job_scheduler/jobs')
+      .then((res) => {
+        setJobs(res);
+        notifications.toasts.addSuccess(
+          i18n.translate('dashboardsJobScheduler.dataUpdated', {
+            defaultMessage: 'Jobs data retrieved',
+          })
+        );
+      })
+      .catch((error) => {
+        console.error('Error:', error);
+        notifications.toasts.addError(error, {
+          title: 'Failed to fetch jobs'
+        });
+      });
   };
 
   // Render the application DOM.
@@ -95,7 +120,7 @@ export const DashboardsJobSchedulerApp = ({
                     <h2>
                       <FormattedMessage
                         id="dashboardsJobScheduler.congratulationsTitle"
-                        defaultMessage="Congratulations, you have changed the dashboard!"
+                        defaultMessage="Congratulations!"
                       />
                     </h2>
                   </EuiTitle>
@@ -105,7 +130,7 @@ export const DashboardsJobSchedulerApp = ({
                     <p>
                       <FormattedMessage
                         id="dashboardsJobScheduler.content"
-                        defaultMessage="Look through the generated code and check out the plugin development documentation."
+                        defaultMessage="Provides Scheduled job information."
                       />
                     </p>
                     <EuiHorizontalRule />
@@ -122,6 +147,27 @@ export const DashboardsJobSchedulerApp = ({
                         defaultMessage="Get data"
                       />
                     </EuiButton>
+                    <EuiHorizontalRule />
+                    <p>
+                      <FormattedMessage
+                        id="dashboardsJobScheduler.content"
+                        defaultMessage="Attempted API call for scheduled jobs."
+                      />
+                    </p>
+                    <p>
+                      <FormattedMessage
+                        id="dashboardsJobScheduler.jobs"
+                        defaultMessage="Jobs: {jobs}"
+                        values={{ jobs: jobs ? convertResponseToText(jobs) : 'No jobs data' }}
+                      />
+                    </p>
+                    <EuiButton type="primary" size="s" onClick={getJobsHandler}>
+                      <FormattedMessage
+                        id="dashboardsJobScheduler.buttonText"
+                        defaultMessage="Get jobs"
+                      />
+                    </EuiButton>
+                    <EuiHorizontalRule />
                   </EuiText>
                 </EuiPageContentBody>
               </EuiPageContent>

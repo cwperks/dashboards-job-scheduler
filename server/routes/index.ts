@@ -29,4 +29,26 @@ export function defineRoutes(router: IRouter) {
       });
     }
   );
+
+  router.get(
+    {
+      path: '/api/dashboards_job_scheduler/jobs',
+      validate: false,
+    },
+    async (context, request, response) => {
+      try {
+        const client = context.core.opensearch.client.asCurrentUser;
+        const result = await client.transport.request({
+          method: 'GET',
+          path: '/_plugins/_job_scheduler/api/jobs'
+        });
+        return response.ok({ body: result.body });
+      } catch (error) {
+        return response.customError({
+          statusCode: error.statusCode || 500,
+          body: error.message
+        });
+      }
+    }
+  );
 }
