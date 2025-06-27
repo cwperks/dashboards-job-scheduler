@@ -74,6 +74,7 @@ export const DashboardsJobSchedulerApp = ({
   };
 
   const getJobsHandler = () => {
+    setJobsByNode(undefined);
     // Use the core http service to make a response to the server API.
     http.get('/api/dashboards_job_scheduler/jobs')
       .then((res) => {
@@ -93,6 +94,7 @@ export const DashboardsJobSchedulerApp = ({
   };
 
   const getJobsByNodeHandler = () => {
+    setJobs(undefined);
     http.get('/api/dashboards_job_scheduler/jobs/by_node')
       .then((res) => {
         setJobsByNode(res);
@@ -154,32 +156,20 @@ export const DashboardsJobSchedulerApp = ({
                       />
                     </p>
                     <EuiHorizontalRule />
-                    <p>
-                      <FormattedMessage
-                        id="dashboardsJobScheduler.timestampText"
-                        defaultMessage="Last timestamp: {time}"
-                        values={{ time: timestamp ? timestamp : 'Unknown' }}
-                      />
-                    </p>
-                    <EuiButton type="primary" size="s" onClick={onClickHandler}>
-                      <FormattedMessage
-                        id="dashboardsJobScheduler.buttonText"
-                        defaultMessage="Get data"
-                      />
-                    </EuiButton>
-                    <EuiHorizontalRule />
-                    <p>
-                      <FormattedMessage
-                        id="dashboardsJobScheduler.content2"
-                        defaultMessage="Attempted API call for scheduled jobs."
-                      />
-                    </p>
-                    <EuiButton type="primary" size="s" onClick={getJobsHandler}>
-                      <FormattedMessage
-                        id="dashboardsJobScheduler.buttonText"
-                        defaultMessage="Get jobs"
-                      />
-                    </EuiButton>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <EuiButton type="primary" size="s" onClick={getJobsHandler}>
+                        <FormattedMessage
+                          id="dashboardsJobScheduler.buttonText"
+                          defaultMessage="Get jobs"
+                        />
+                      </EuiButton>
+                      <EuiButton type="primary" size="s" onClick={getJobsByNodeHandler}>
+                        <FormattedMessage
+                          id="dashboardsJobSchedulerByNode.buttonText"
+                          defaultMessage="Get jobs by node"
+                        />
+                      </EuiButton>
+                    </div>
                     {jobs && (
                       <>
                         <p>Failures: {jobs.failures?.length || 0} | Total Jobs: {jobs.total_jobs || 0}</p>
@@ -216,19 +206,7 @@ export const DashboardsJobSchedulerApp = ({
                         />
                       </>
                     )}
-                    <EuiHorizontalRule />
-                    <p>
-                      <FormattedMessage
-                        id="dashboardsJobScheduler.content3"
-                        defaultMessage="Attempted API call for scheduled jobs by node."
-                      />
-                    </p>
-                    <EuiButton type="primary" size="s" onClick={getJobsByNodeHandler}>
-                      <FormattedMessage
-                        id="dashboardsJobSchedulerByNode.buttonText"
-                        defaultMessage="Get jobs by node"
-                      />
-                    </EuiButton>
+
                     {jobsByNode && (
                       <>
                         {jobsByNode.failures && jobsByNode.failures.length > 0 && (
