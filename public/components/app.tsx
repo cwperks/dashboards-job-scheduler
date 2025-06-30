@@ -13,10 +13,10 @@
  *   permissions and limitations under the License.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { i18n } from '@osd/i18n';
 import { FormattedMessage, I18nProvider } from '@osd/i18n/react';
-import { BrowserRouter as Router } from 'react-router-dom';
+import { HashRouter as Router, Route, Switch, Redirect } from 'react-router-dom';
 
 import {
   EuiButton,
@@ -27,9 +27,15 @@ import {
   EuiPageContentBody,
   EuiPageContentHeader,
   EuiPageHeader,
+  EuiPageSideBar,
+  EuiSideNav,
   EuiTitle,
   EuiText,
   EuiBasicTable,
+  EuiSelect,
+  EuiFlexGroup,
+  EuiFlexItem,
+  EuiFieldSearch,
 } from '@elastic/eui';
 
 import { CoreStart } from '../../../../src/core/public';
@@ -44,76 +50,386 @@ interface DashboardsJobSchedulerAppDeps {
   navigation: NavigationPublicPluginStart;
 }
 
+const NAV_ITEMS = [
+  { id: 'all-jobs', name: 'All Jobs', href: '/all-jobs' },
+  { id: 'active-jobs', name: 'Active Jobs', href: '/active-jobs' },
+  { id: 'jobs-by-node', name: 'Jobs by Node', href: '/jobs-by-node' },
+];
+
+const JobsTable = ({ jobs, pageIndex, pageSize, onPageChange, jobTypeFilter, onJobTypeFilterChange, searchQuery, onSearchChange }: any) => {
+  let filteredJobs = jobTypeFilter === 'all' ? jobs : jobs?.filter((job: any) => job.job_type === jobTypeFilter) || [];
+  if (searchQuery) {
+    filteredJobs = filteredJobs?.filter((job: any) => job.name?.toLowerCase().includes(searchQuery.toLowerCase())) || [];
+  }
+  const startIndex = pageIndex * pageSize;
+  const endIndex = startIndex + pageSize;
+  const pageItems = filteredJobs?.slice(startIndex, endIndex) || [];
+  
+  const jobTypes = ['all', ...Array.from(new Set(jobs?.map((job: any) => job.job_type) || []))];
+  const jobTypeOptions = jobTypes.map(type => ({ value: String(type), text: type === 'all' ? 'All Types' : String(type) }));
+  
+  return (
+    <>
+      <EuiFlexGroup gutterSize="m">
+        <EuiFlexItem grow={false}>
+          <EuiSelect
+            options={jobTypeOptions}
+            value={jobTypeFilter}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => onJobTypeFilterChange(e.target.value)}
+            prepend="Job Type:"
+          />
+        </EuiFlexItem>
+        <EuiFlexItem>
+          <EuiFieldSearch
+            placeholder="Search by job name..."
+            value={searchQuery}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => onSearchChange(e.target.value)}
+          />
+        </EuiFlexItem>
+      </EuiFlexGroup>
+      <EuiBasicTable
+        items={pageItems}
+      columns={[
+      { 
+        field: 'job_id', 
+        name: 'Job ID',
+        render: (jobId: string) => {
+          const basePath = window.location.pathname.split('/app/')[0];
+          return (
+            <a href={`${window.location.origin}${basePath}/app/reports-dashboards#/report_definition_details/${jobId}`} target="_blank" rel="noopener noreferrer">
+              {jobId}
+            </a>
+          );
+        }
+      },
+      { field: 'name', name: 'Name' },
+      { field: 'job_type', name: 'Type' },
+      { field: 'index_name', name: 'Index' },
+      { field: 'descheduled', name: 'Descheduled' },
+      { field: 'enabled', name: 'Enabled' },
+      { field: 'enabled_time', name: 'Enabled Time' },
+      { field: 'last_update_time', name: 'Last Update' },
+      { field: 'last_execution_time', name: 'Last Execution' },
+      { field: 'last_expected_execution_time', name: 'Last Expected' },
+      { field: 'next_expected_execution_time', name: 'Next Execution' },
+      { 
+        field: 'schedule', 
+        name: 'Schedule',
+        render: (schedule: any) => {
+          if (schedule?.type === 'cron') {
+            return `Cron: ${schedule.expression} (${schedule.timezone})`;
+          } else if (schedule?.type === 'interval') {
+            return `Interval: ${schedule.interval} ${schedule.unit}`;
+          }
+          return 'N/A';
+        }
+      },
+      { field: 'delay', name: 'Delay' },
+      { field: 'jitter', name: 'Jitter' },
+      { field: 'lock_duration', name: 'Lock Duration' },
+    ]}
+    pagination={{
+      pageIndex,
+      pageSize,
+      totalItemCount: filteredJobs?.length || 0,
+      pageSizeOptions: [5, 10, 20, 50]
+    }}
+    onChange={onPageChange}
+    />
+    </>
+  );
+};
+
+const AllJobsPanel = ({ http, notifications }: any) => {
+  const [jobs, setJobs] = useState<any>();
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [jobTypeFilter, setJobTypeFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    http.get('/api/dashboards_job_scheduler/jobs')
+      .then((res: any) => {
+        setJobs(res.jobs);
+        notifications.toasts.addSuccess('All jobs loaded');
+      })
+      .catch((error: any) => {
+        notifications.toasts.addError(error, { title: 'Failed to fetch jobs' });
+      });
+  }, []);
+
+  return (
+    <>
+      <EuiPageHeader>
+        <EuiTitle size="l"><h1>All Jobs</h1></EuiTitle>
+      </EuiPageHeader>
+      <EuiPageContent>
+        <EuiPageContentBody>
+          <p>Total Jobs: {jobs?.length || 0}</p>
+          <JobsTable 
+            jobs={jobs} 
+            pageIndex={pageIndex} 
+            pageSize={pageSize}
+            jobTypeFilter={jobTypeFilter}
+            searchQuery={searchQuery}
+            onJobTypeFilterChange={(filter: string) => {
+              setJobTypeFilter(filter);
+              setPageIndex(0);
+            }}
+            onSearchChange={(query: string) => {
+              setSearchQuery(query);
+              setPageIndex(0);
+            }}
+            onPageChange={({ page }: { page?: { index: number; size: number } }) => {
+              if (page) {
+                setPageIndex(page.index);
+                setPageSize(page.size);
+              }
+            }}
+          />
+        </EuiPageContentBody>
+      </EuiPageContent>
+    </>
+  );
+};
+
+const ActiveJobsPanel = ({ http, notifications }: any) => {
+  const [jobs, setJobs] = useState<any>();
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [jobTypeFilter, setJobTypeFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    http.get('/api/dashboards_job_scheduler/jobs')
+      .then((res: any) => {
+        const activeJobs = res.jobs?.filter((job: any) => job.lock_duration != 'no_lock') || [];
+        setJobs(activeJobs);
+        notifications.toasts.addSuccess('Active jobs loaded');
+      })
+      .catch((error: any) => {
+        notifications.toasts.addError(error, { title: 'Failed to fetch active jobs' });
+      });
+  }, []);
+
+  return (
+    <>
+      <EuiPageHeader>
+        <EuiTitle size="l"><h1>Active Jobs</h1></EuiTitle>
+      </EuiPageHeader>
+      <EuiPageContent>
+        <EuiPageContentBody>
+          <p>Active Jobs: {jobs?.length || 0}</p>
+          <JobsTable 
+            jobs={jobs} 
+            pageIndex={pageIndex} 
+            pageSize={pageSize}
+            jobTypeFilter={jobTypeFilter}
+            searchQuery={searchQuery}
+            onJobTypeFilterChange={(filter: string) => {
+              setJobTypeFilter(filter);
+              setPageIndex(0);
+            }}
+            onSearchChange={(query: string) => {
+              setSearchQuery(query);
+              setPageIndex(0);
+            }}
+            onPageChange={({ page }: { page?: { index: number; size: number } }) => {
+              if (page) {
+                setPageIndex(page.index);
+                setPageSize(page.size);
+              }
+            }}
+          />
+        </EuiPageContentBody>
+      </EuiPageContent>
+    </>
+  );
+};
+
+const JobsByNodePanel = ({ http, notifications }: any) => {
+  const [jobsByNode, setJobsByNode] = useState<any>();
+  const [nodePageStates, setNodePageStates] = useState<{[key: string]: {pageIndex: number, pageSize: number, jobTypeFilter?: string, searchQuery?: string}}>({});
+
+  useEffect(() => {
+    http.get('/api/dashboards_job_scheduler/jobs/by_node')
+      .then((res: any) => {
+        setJobsByNode(res);
+        notifications.toasts.addSuccess('Jobs by node loaded');
+      })
+      .catch((error: any) => {
+        notifications.toasts.addError(error, { title: 'Failed to fetch jobs by node' });
+      });
+  }, []);
+
+  return (
+    <>
+      <EuiPageHeader>
+        <EuiTitle size="l"><h1>Jobs by Node</h1></EuiTitle>
+      </EuiPageHeader>
+      <EuiPageContent>
+        <EuiPageContentBody>
+          {jobsByNode?.failures && jobsByNode.failures.length > 0 && (
+            <p>Failures: {jobsByNode.failures.join(', ')}</p>
+          )}
+          {jobsByNode?.nodes?.map((node: any) => (
+            <div key={node.node_id}>
+              <p>Node: {node.node_name || node.node_id} (ID: {node.node_id}) | Total Jobs: {node.scheduled_job_info.total_jobs}</p>
+              <EuiFlexGroup gutterSize="m">
+                <EuiFlexItem grow={false}>
+                  <EuiSelect
+                    options={[
+                      { value: 'all', text: 'All Types' },
+                      ...Array.from(new Set(node.scheduled_job_info.jobs?.map((job: any) => job.job_type) || [])).map((type: any) => ({ value: String(type), text: String(type) }))
+                    ]}
+                    value={nodePageStates[node.node_id]?.jobTypeFilter || 'all'}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                      setNodePageStates(prev => ({
+                        ...prev,
+                        [node.node_id]: {
+                          ...prev[node.node_id],
+                          jobTypeFilter: e.target.value,
+                          pageIndex: 0
+                        }
+                      }));
+                    }}
+                    prepend="Job Type:"
+                  />
+                </EuiFlexItem>
+                <EuiFlexItem>
+                  <EuiFieldSearch
+                    placeholder="Search by job name..."
+                    value={nodePageStates[node.node_id]?.searchQuery || ''}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                      setNodePageStates(prev => ({
+                        ...prev,
+                        [node.node_id]: {
+                          ...prev[node.node_id],
+                          searchQuery: e.target.value,
+                          pageIndex: 0
+                        }
+                      }));
+                    }}
+                  />
+                </EuiFlexItem>
+              </EuiFlexGroup>
+              <EuiBasicTable
+                items={(() => {
+                  const nodeJobs = node.scheduled_job_info.jobs || [];
+                  const jobTypeFilter = nodePageStates[node.node_id]?.jobTypeFilter || 'all';
+                  const searchQuery = nodePageStates[node.node_id]?.searchQuery || '';
+                  let filteredJobs = jobTypeFilter === 'all' ? nodeJobs : nodeJobs.filter((job: any) => job.job_type === jobTypeFilter);
+                  if (searchQuery) {
+                    filteredJobs = filteredJobs.filter((job: any) => job.name?.toLowerCase().includes(searchQuery.toLowerCase()));
+                  }
+                  const nodePageIndex = nodePageStates[node.node_id]?.pageIndex || 0;
+                  const nodePageSize = nodePageStates[node.node_id]?.pageSize || 10;
+                  const startIndex = nodePageIndex * nodePageSize;
+                  const endIndex = startIndex + nodePageSize;
+                  return filteredJobs.slice(startIndex, endIndex);
+                })()}
+                columns={[
+                  { 
+                    field: 'job_id', 
+                    name: 'Job ID',
+                    render: (jobId: string) => {
+                      const basePath = window.location.pathname.split('/app/')[0];
+                      return (
+                        <a href={`${window.location.origin}${basePath}/app/reports-dashboards#/report_definition_details/${jobId}`} target="_blank" rel="noopener noreferrer">
+                          {jobId}
+                        </a>
+                      );
+                    }
+                  },
+                  { field: 'name', name: 'Name' },
+                  { field: 'job_type', name: 'Type' },
+                  { field: 'index_name', name: 'Index' },
+                  { field: 'descheduled', name: 'Descheduled' },
+                  { field: 'enabled', name: 'Enabled' },
+                  { field: 'enabled_time', name: 'Enabled Time' },
+                  { field: 'last_update_time', name: 'Last Update' },
+                  { field: 'last_execution_time', name: 'Last Execution' },
+                  { field: 'last_expected_execution_time', name: 'Last Expected' },
+                  { field: 'next_expected_execution_time', name: 'Next Execution' },
+                  { 
+                    field: 'schedule', 
+                    name: 'Schedule',
+                    render: (schedule: any) => {
+                      if (schedule?.type === 'cron') {
+                        return `Cron: ${schedule.expression} (${schedule.timezone})`;
+                      } else if (schedule?.type === 'interval') {
+                        return `Interval: ${schedule.interval} ${schedule.unit}`;
+                      }
+                      return 'N/A';
+                    }
+                  },
+                  { field: 'delay', name: 'Delay' },
+                  { field: 'jitter', name: 'Jitter' },
+                  { field: 'lock_duration', name: 'Lock Duration' },
+                ]}
+                pagination={{
+                  pageIndex: nodePageStates[node.node_id]?.pageIndex || 0,
+                  pageSize: nodePageStates[node.node_id]?.pageSize || 10,
+                  totalItemCount: (() => {
+                    const nodeJobs = node.scheduled_job_info.jobs || [];
+                    const jobTypeFilter = nodePageStates[node.node_id]?.jobTypeFilter || 'all';
+                    const searchQuery = nodePageStates[node.node_id]?.searchQuery || '';
+                    let filteredJobs = jobTypeFilter === 'all' ? nodeJobs : nodeJobs.filter((job: any) => job.job_type === jobTypeFilter);
+                    if (searchQuery) {
+                      filteredJobs = filteredJobs.filter((job: any) => job.name?.toLowerCase().includes(searchQuery.toLowerCase()));
+                    }
+                    return filteredJobs.length;
+                  })(),
+                  pageSizeOptions: [5, 10, 20, 50]
+                }}
+                onChange={({ page }: { page?: { index: number; size: number } }) => {
+                  if (page) {
+                    setNodePageStates(prev => ({
+                      ...prev,
+                      [node.node_id]: {
+                        ...prev[node.node_id],
+                        pageIndex: page.index,
+                        pageSize: page.size
+                      }
+                    }));
+                  }
+                }}
+              />
+            </div>
+          ))}
+        </EuiPageContentBody>
+      </EuiPageContent>
+    </>
+  );
+};
+
 export const DashboardsJobSchedulerApp = ({
   basename,
   notifications,
   http,
   navigation,
 }: DashboardsJobSchedulerAppDeps) => {
-  // Use React hooks to manage state.
-  const [timestamp, setTimestamp] = useState<string | undefined>();
+  const [currentPath, setCurrentPath] = useState(window.location.hash);
 
-  const [jobs, setJobs] = useState<any>();
-  const [jobsByNode, setJobsByNode] = useState<any>();
+  useEffect(() => {
+    const handleHashChange = () => setCurrentPath(window.location.hash);
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
-  const convertResponseToText = (response: any): string => {
-    return JSON.stringify(response, null, 2);
-  };
+  const buildNavItems = () => [
+    {
+      name: 'Job Scheduler',
+      id: 'job-scheduler',
+      items: NAV_ITEMS.map((item) => ({
+        id: item.id,
+        name: item.name,
+        href: '#' + item.href,
+        isSelected: currentPath === '#' + item.href,
+      })),
+    },
+  ];
 
-  const onClickHandler = () => {
-    // Use the core http service to make a response to the server API.
-    http.get('/api/dashboards_job_scheduler/example').then((res) => {
-      setTimestamp(res.time);
-      // Use the core notifications service to display a success message.
-      notifications.toasts.addSuccess(
-        i18n.translate('dashboardsJobScheduler.dataUpdated', {
-          defaultMessage: 'Data updated time now',
-        })
-      );
-    });
-  };
-
-  const getJobsHandler = () => {
-    setJobsByNode(undefined);
-    // Use the core http service to make a response to the server API.
-    http.get('/api/dashboards_job_scheduler/jobs')
-      .then((res) => {
-        setJobs(res);
-        notifications.toasts.addSuccess(
-          i18n.translate('dashboardsJobScheduler.dataUpdated', {
-            defaultMessage: 'Jobs data retrieved',
-          })
-        );
-      })
-      .catch((error) => {
-        console.error('Error:', error);
-        notifications.toasts.addError(error, {
-          title: 'Failed to fetch jobs'
-        });
-      });
-  };
-
-  const getJobsByNodeHandler = () => {
-    setJobs(undefined);
-    http.get('/api/dashboards_job_scheduler/jobs/by_node')
-      .then((res) => {
-        setJobsByNode(res);
-        notifications.toasts.addSuccess(
-          i18n.translate('dashboardsJobScheduler.dataUpdated', {
-            defaultMessage: 'Jobs by node data retrieved',
-          })
-        );
-      })
-      .catch((error) => {
-        console.error('Error:', error);
-        notifications.toasts.addError(error, {
-          title: 'Failed to fetch jobs by node'
-        });
-      });
-  };
-
-  // Render the application DOM.
-  // Note that `navigation.ui.TopNavMenu` is a stateful component exported on the `navigation` plugin's start contract.
   return (
     <Router basename={basename}>
       <I18nProvider>
@@ -123,136 +439,21 @@ export const DashboardsJobSchedulerApp = ({
             showSearchBar={false}
             useDefaultBehaviors={true}
           />
-          <EuiPage restrictWidth="1000px">
+          <EuiPage restrictWidth="1700px">
+            {NAV_ITEMS.map((item) => (
+              <Route key={item.href} path={item.href} exact>
+                <EuiPageSideBar>
+                  <EuiSideNav items={buildNavItems()} />
+                </EuiPageSideBar>
+              </Route>
+            ))}
             <EuiPageBody component="main">
-              <EuiPageHeader>
-                <EuiTitle size="l">
-                  <h1>
-                    <FormattedMessage
-                      id="dashboardsJobScheduler.helloWorldText"
-                      defaultMessage="{name}"
-                      values={{ name: 'Schedule' }}
-                    />
-                  </h1>
-                </EuiTitle>
-              </EuiPageHeader>
-              <EuiPageContent>
-                <EuiPageContentHeader>
-                  <EuiTitle>
-                    <h2>
-                      <FormattedMessage
-                        id="dashboardsJobScheduler.congratulationsTitle"
-                        defaultMessage="Congratulations!"
-                      />
-                    </h2>
-                  </EuiTitle>
-                </EuiPageContentHeader>
-                <EuiPageContentBody>
-                  <EuiText>
-                    <p>
-                      <FormattedMessage
-                        id="dashboardsJobScheduler.content"
-                        defaultMessage="Provides Scheduled job information."
-                      />
-                    </p>
-                    <EuiHorizontalRule />
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <EuiButton type="primary" size="s" onClick={getJobsHandler}>
-                        <FormattedMessage
-                          id="dashboardsJobScheduler.buttonText"
-                          defaultMessage="Get jobs"
-                        />
-                      </EuiButton>
-                      <EuiButton type="primary" size="s" onClick={getJobsByNodeHandler}>
-                        <FormattedMessage
-                          id="dashboardsJobSchedulerByNode.buttonText"
-                          defaultMessage="Get jobs by node"
-                        />
-                      </EuiButton>
-                    </div>
-                    {jobs && (
-                      <>
-                        <p>Failures: {jobs.failures?.length || 0} | Total Jobs: {jobs.total_jobs || 0}</p>
-                        <EuiBasicTable
-                          items={jobs.jobs || []}
-                          columns={[
-                            { field: 'job_id', name: 'Job ID' },
-                            { field: 'name', name: 'Name' },
-                            { field: 'job_type', name: 'Type' },
-                            { field: 'index_name', name: 'Index' },
-                            { field: 'descheduled', name: 'Descheduled' },
-                            { field: 'enabled', name: 'Enabled' },
-                            { field: 'enabled_time', name: 'Enabled Time' },
-                            { field: 'last_update_time', name: 'Last Update' },
-                            { field: 'last_execution_time', name: 'Last Execution' },
-                            { field: 'last_expected_execution_time', name: 'Last Expected' },
-                            { field: 'next_expected_execution_time', name: 'Next Execution' },
-                            { 
-                              field: 'schedule', 
-                              name: 'Schedule',
-                              render: (schedule: any) => {
-                                if (schedule?.type === 'cron') {
-                                  return `Cron: ${schedule.expression} (${schedule.timezone})`;
-                                } else if (schedule?.type === 'interval') {
-                                  return `Interval: ${schedule.interval} ${schedule.unit}`;
-                                }
-                                return 'N/A';
-                              }
-                            },
-                            { field: 'delay', name: 'Delay' },
-                            { field: 'jitter', name: 'Jitter' },
-                            { field: 'lock_duration', name: 'Lock Duration' },
-                          ]}
-                        />
-                      </>
-                    )}
-
-                    {jobsByNode && (
-                      <>
-                        {jobsByNode.failures && jobsByNode.failures.length > 0 && (
-                          <p>Failures: {jobsByNode.failures.join(', ')}</p>
-                        )}
-                        {jobsByNode.nodes?.map((node: any) => (
-                          <div key={node.node_id}>
-                            <p>Node: {node.node_id} | Total Jobs: {node.scheduled_job_info.total_jobs}</p>
-                            <EuiBasicTable
-                              items={node.scheduled_job_info.jobs || []}
-                              columns={[
-                                { field: 'job_id', name: 'Job ID' },
-                                { field: 'name', name: 'Name' },
-                                { field: 'job_type', name: 'Type' },
-                                { field: 'index_name', name: 'Index' },
-                                { field: 'descheduled', name: 'Descheduled' },
-                                { field: 'enabled', name: 'Enabled' },
-                                { field: 'enabled_time', name: 'Enabled Time' },
-                                { field: 'last_update_time', name: 'Last Update' },
-                                { field: 'last_execution_time', name: 'Last Execution' },
-                                { field: 'last_expected_execution_time', name: 'Last Expected' },
-                                { field: 'next_expected_execution_time', name: 'Next Execution' },
-                                { 
-                                  field: 'schedule', 
-                                  name: 'Schedule',
-                                  render: (schedule: any) => {
-                                    if (schedule?.type === 'cron') {
-                                      return `Cron: ${schedule.expression} (${schedule.timezone})`;
-                                    } else if (schedule?.type === 'interval') {
-                                      return `Interval: ${schedule.interval} ${schedule.unit}`;
-                                    }
-                                    return 'N/A';
-                                  }
-                                },
-                                { field: 'delay', name: 'Delay' },
-                                { field: 'jitter', name: 'Jitter' },
-                                { field: 'lock_duration', name: 'Lock Duration' },
-                              ]}
-                            />
-                          </div>
-                        ))}
-                      </>
-                    )}
-                  </EuiText>
-                </EuiPageContentBody>
-              </EuiPageContent>
+              <Switch>
+                <Route path="/all-jobs" render={() => <AllJobsPanel http={http} notifications={notifications} />} />
+                <Route path="/active-jobs" render={() => <ActiveJobsPanel http={http} notifications={notifications} />} />
+                <Route path="/jobs-by-node" render={() => <JobsByNodePanel http={http} notifications={notifications} />} />
+                <Redirect exact from="/" to="/all-jobs" />
+              </Switch>
             </EuiPageBody>
           </EuiPage>
         </>
