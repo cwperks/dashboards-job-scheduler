@@ -14,7 +14,7 @@
  */
 
 import { i18n } from '@osd/i18n';
-import { AppMountParameters, CoreSetup, CoreStart, Plugin } from '../../../src/core/public';
+import { AppMountParameters, CoreSetup, CoreStart, Plugin, DEFAULT_APP_CATEGORIES } from '../../../src/core/public';
 import {
   DashboardsJobSchedulerPluginSetup,
   DashboardsJobSchedulerPluginStart,
@@ -28,7 +28,8 @@ export class DashboardsJobSchedulerPlugin
     // Register an application into the side navigation menu
     core.application.register({
       id: 'dashboardsJobScheduler',
-      title: 'Schedule',
+      title: 'Job Scheduler',
+      category: DEFAULT_APP_CATEGORIES.management,
       async mount(params: AppMountParameters) {
         // Load application bundle
         const { renderApp } = await import('./application');
