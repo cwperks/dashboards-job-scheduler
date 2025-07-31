@@ -13,7 +13,6 @@
  *   permissions and limitations under the License.
  */
 
-import { schema } from '@osd/config-schema';
 import { IRouter } from '../../../../src/core/server';
 
 export function defineRoutes(router: IRouter) {
@@ -57,7 +56,7 @@ export function defineRoutes(router: IRouter) {
 
   router.get(
     {
-      path: '/api/dashboards_job_scheduler/jobs/by_node',
+      path: '/api/dashboards_job_scheduler/locks',
       validate: false,
     },
     async (context, request, response) => {
@@ -66,7 +65,7 @@ export function defineRoutes(router: IRouter) {
         
         const requestOptions: any = {
           method: 'GET',
-          path: '/_plugins/_job_scheduler/api/jobs?by_node'
+          path: '/_plugins/_job_scheduler/api/locks'
         };
         const result = await client.transport.request(requestOptions);
         return response.ok({ body: result.body });

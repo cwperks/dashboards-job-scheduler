@@ -14,7 +14,6 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { i18n } from '@osd/i18n';
 import { FormattedMessage, I18nProvider } from '@osd/i18n/react';
 
 import {
@@ -127,7 +126,7 @@ const ActionButton = () => {
   );
 };
 
-const JobsTable = ({ jobs, pageIndex, pageSize, onPageChange, jobTypeFilter, onJobTypeFilterChange, searchQuery, onSearchChange, onRefresh }: any) => {
+const JobsTable = ({ jobs, locks, pageIndex, pageSize, onPageChange, jobTypeFilter, onJobTypeFilterChange, searchQuery, onSearchChange, onRefresh }: any) => {
   let filteredJobs = jobTypeFilter === 'all' ? jobs : jobs?.filter((job: any) => job.job_type === jobTypeFilter) || [];
   if (searchQuery) {
     filteredJobs = filteredJobs?.filter((job: any) => {
@@ -205,7 +204,19 @@ const JobsTable = ({ jobs, pageIndex, pageSize, onPageChange, jobTypeFilter, onJ
               </span>
             );
           }
-          if (job.lock_duration && job.lock_duration !== 'no_lock') {
+          const lockKey = `${job.index_name}-${job.job_id}`;
+          console.log('=== LOCKS DEBUG ===');
+          console.log('All locks data:', locks);
+          console.log('Job:', job.job_id, 'Index:', job.index_name);
+          console.log('Lock key:', lockKey);
+          console.log('Lock exists:', locks && locks[lockKey]);
+          if (locks && locks[lockKey]) {
+            console.log('Lock data:', locks[lockKey]);
+          }
+          console.log('==================');
+          
+          const isRunning = locks && locks[lockKey] && !locks[lockKey].released;
+          if (isRunning) {
             return (
               <span>
                 <span style={{ color: '#00BF63', marginRight: '8px' , transform: 'scale(1.5)', display: 'inline-block' }}>●</span>
@@ -275,7 +286,7 @@ const AllJobsPanel = ({ http, notifications }: any) => {
         setJobs(jobsRes.jobs);
         notifications.toasts.addSuccess('All jobs loaded');
         
-        http.get('/_plugins/_job_scheduler/api/locks')
+        http.get('/api/dashboards_job_scheduler/locks')
           .then((locksRes: any) => {
             setLocks(locksRes.locks);
           })
@@ -320,7 +331,7 @@ const AllJobsPanel = ({ http, notifications }: any) => {
                   setJobs(jobsRes.jobs);
                   notifications.toasts.addSuccess('Jobs refreshed');
                   
-                  http.get('/_plugins/_job_scheduler/api/locks')
+                  http.get('/api/dashboards_job_scheduler/locks')
                     .then((locksRes: any) => {
                       setLocks(locksRes.locks);
                     })
@@ -350,7 +361,7 @@ const ActiveJobsPanel = ({ http, notifications }: any) => {
   useEffect(() => {
     http.get('/api/dashboards_job_scheduler/jobs')
       .then((jobsRes: any) => {
-        http.get('/_plugins/_job_scheduler/api/locks')
+        http.get('/api/dashboards_job_scheduler/locks')
           .then((locksRes: any) => {
             const runningJobs = jobsRes.jobs?.filter((job: any) => {
               const lockKey = `${job.index_name}-${job.job_id}`;
@@ -400,7 +411,7 @@ const ActiveJobsPanel = ({ http, notifications }: any) => {
             onRefresh={() => {
               http.get('/api/dashboards_job_scheduler/jobs')
                 .then((jobsRes: any) => {
-                  http.get('/_plugins/_job_scheduler/api/locks')
+                  http.get('/api/dashboards_job_scheduler/locks')
                     .then((locksRes: any) => {
                       const runningJobs = jobsRes.jobs?.filter((job: any) => {
                         const lockKey = `${job.index_name}-${job.job_id}`;
@@ -440,7 +451,7 @@ const JobSchedulerDashboard = ({ http, notifications }: any) => {
       <EuiPageHeader>
         <div>
           <EuiTitle size="l"><h1>Job Scheduler</h1></EuiTitle>
-          <EuiText color="subdued">View all your jobs on this cluster.</EuiText>
+          <EuiText color="subdued">View all jobs on this cluster.</EuiText>
         </div>
       </EuiPageHeader>
       <EuiTabs>
