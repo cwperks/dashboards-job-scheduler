@@ -78,4 +78,27 @@ export function defineRoutes(router: IRouter) {
     }
   );
 
+  router.get(
+    {
+      path: '/api/dashboards_job_scheduler/history',
+      validate: false,
+    },
+    async (context, request, response) => {
+      try {
+        const client = context.core.opensearch.client.asCurrentUser;
+        
+        const requestOptions: any = {
+          method: 'GET',
+          path: '/_plugins/_job_scheduler/api/history'
+        };
+        const result = await client.transport.request(requestOptions);
+        return response.ok({ body: result.body });
+      } catch (error) {
+        return response.customError({
+          statusCode: error.statusCode || 500,
+          body: error.message
+        });
+      }
+    }
+  );
 }

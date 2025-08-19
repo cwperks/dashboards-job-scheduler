@@ -55,6 +55,7 @@ interface DashboardsJobSchedulerAppDeps {
 const formatDateTime = (dateString: string) => {
   if (!dateString || dateString.toLowerCase() === 'none') return 'None';
   const date = new Date(dateString);
+  if (isNaN(date.getTime())) return 'Invalid Date';
   return date.toLocaleString('en-US', {
     month: '2-digit',
     day: '2-digit',
@@ -95,7 +96,7 @@ const ScheduleHeader = () => {
   );
 };
 
-const ActionButton = () => {
+const ActionButton = ({ onViewHistory }: { onViewHistory: () => void }) => {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   return (
     <EuiPopover
@@ -116,8 +117,12 @@ const ActionButton = () => {
           id: 0,
           items: [
             {
-              name: 'Coming Soon',
-              disabled: true,
+              name: 'View History',
+              icon: 'clock',
+              onClick: () => {
+                setIsPopoverOpen(false);
+                onViewHistory();
+              },
             },
           ],
         },
@@ -257,7 +262,7 @@ const JobsTable = ({ jobs, locks, pageIndex, pageSize, onPageChange, jobTypeFilt
       },
       { 
         name: 'Actions',
-        render: () => <ActionButton />
+        render: (item: any) => <ActionButton onViewHistory={() => window.open(`#/history/${item.job_id}`, '_blank')} />
       },
     ]}
     pagination={{
@@ -438,13 +443,101 @@ const ActiveJobsPanel = ({ http, notifications }: any) => {
   );
 };
 
+const HistoryPanel = ({ http, notifications, jobId }: any) => {
+  const [history, setHistory] = useState<any[]>([]);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    http.get('/api/dashboards_job_scheduler/history')
+      .then((res: any) => {
+        const historyArray = Object.entries(res.history || {}).map(([key, value]: [string, any]) => ({
+          key,
+          ...value,
+          duration: value.end_time - value.start_time,
+          status: value.completion_status === 0 ? 'Success' : 'Failed'
+        }));
+        const filteredHistory = jobId ? 
+          historyArray.filter((h: any) => h.job_id === jobId) :
+          historyArray;
+        setHistory(filteredHistory.sort((a, b) => b.start_time - a.start_time));
+        notifications.toasts.addSuccess('Job history loaded');
+      })
+      .catch((error: any) => {
+        notifications.toasts.addError(error, { title: 'Failed to fetch job history' });
+      });
+  }, [jobId]);
+
+  const filteredHistory = searchQuery ? 
+    history.filter((h: any) => h.job_id?.toLowerCase().includes(searchQuery.toLowerCase())) :
+    history;
+  const startIndex = pageIndex * pageSize;
+  const endIndex = startIndex + pageSize;
+  const pageItems = filteredHistory.slice(startIndex, endIndex);
+
+  return (
+    <EuiPageContent>
+      <EuiPageContentBody>
+        <EuiFlexGroup gutterSize="m">
+          <EuiFlexItem>
+            <EuiFieldSearch
+              placeholder="Search by Job ID"
+              value={searchQuery}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                setSearchQuery(e.target.value);
+                setPageIndex(0);
+              }}
+            />
+          </EuiFlexItem>
+        </EuiFlexGroup>
+        <EuiBasicTable
+          items={pageItems}
+          columns={[
+            { field: 'job_id', name: 'Job ID' },
+            { field: 'job_index_name', name: 'Index' },
+            { field: 'start_time', name: 'Start Time', render: (time: number) => formatDateTime(new Date(time * 1000).toISOString()) },
+            { field: 'end_time', name: 'End Time', render: (time: number) => formatDateTime(new Date(time * 1000).toISOString()) },
+            { field: 'status', name: 'Status' },
+            { field: 'duration', name: 'Duration (s)' },
+          ]}
+          pagination={{
+            pageIndex,
+            pageSize,
+            totalItemCount: filteredHistory.length,
+            pageSizeOptions: [5, 10, 20, 50]
+          }}
+          onChange={({ page }: { page?: { index: number; size: number } }) => {
+            if (page) {
+              setPageIndex(page.index);
+              setPageSize(page.size);
+            }
+          }}
+        />
+      </EuiPageContentBody>
+    </EuiPageContent>
+  );
+};
+
 const JobSchedulerDashboard = ({ http, notifications }: any) => {
   const [selectedTab, setSelectedTab] = useState('all');
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
   const tabs = [
     { id: 'all', name: 'All Jobs' },
-    { id: 'active', name: 'Active Jobs' }
+    { id: 'active', name: 'Active Jobs' },
+    { id: 'history', name: 'History' }
   ];
+
+  // Check URL hash for history view
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.startsWith('#/history/')) {
+      const jobId = hash.replace('#/history/', '');
+      setSelectedJobId(jobId);
+      setSelectedTab('history');
+    }
+  }, []);
 
   return (
     <>
@@ -459,7 +552,10 @@ const JobSchedulerDashboard = ({ http, notifications }: any) => {
           <EuiTab
             key={tab.id}
             isSelected={selectedTab === tab.id}
-            onClick={() => setSelectedTab(tab.id)}
+            onClick={() => {
+              setSelectedTab(tab.id);
+              if (tab.id !== 'history') setSelectedJobId(null);
+            }}
           >
             {tab.name}
           </EuiTab>
@@ -467,6 +563,7 @@ const JobSchedulerDashboard = ({ http, notifications }: any) => {
       </EuiTabs>
       {selectedTab === 'all' && <AllJobsPanel http={http} notifications={notifications} />}
       {selectedTab === 'active' && <ActiveJobsPanel http={http} notifications={notifications} />}
+      {selectedTab === 'history' && <HistoryPanel http={http} notifications={notifications} jobId={selectedJobId} />}
     </>
   );
 };
