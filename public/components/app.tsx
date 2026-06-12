@@ -84,6 +84,10 @@ const API_PATHS = {
   jobs: '/api/dashboards_job_scheduler/jobs',
   locks: '/api/dashboards_job_scheduler/locks',
   history: '/api/dashboards_job_scheduler/history',
+  jobHistory: (jobIndexName: string, jobId: string) =>
+    `/api/dashboards_job_scheduler/history?job_index_name=${encodeURIComponent(
+      jobIndexName
+    )}&job_id=${encodeURIComponent(jobId)}`,
 };
 
 const EMPTY_DATE_LABEL = i18n.translate('dashboardsJobScheduler.emptyDateLabel', {
@@ -95,6 +99,15 @@ const INVALID_DATE_LABEL = i18n.translate('dashboardsJobScheduler.invalidDateLab
 });
 
 const getJobLockKey = (job: Job) => `${job.index_name}-${job.job_id}`;
+
+const getJobHistoryHash = (job: Job) => {
+  const queryParams = new URLSearchParams();
+  if (job.index_name) {
+    queryParams.set('job_index_name', job.index_name);
+  }
+  queryParams.set('job_id', job.job_id);
+  return `#/history?${queryParams.toString()}`;
+};
 
 const isJobRunning = (job: Job, locks?: JobLocks) => {
   const lockKey = getJobLockKey(job);
@@ -359,9 +372,7 @@ const JobsTable = ({
           {
             name: 'Actions',
             render: (item: Job) => (
-              <ActionButton
-                onViewHistory={() => window.open(`#/history/${item.job_id}`, '_blank')}
-              />
+              <ActionButton onViewHistory={() => window.open(getJobHistoryHash(item), '_blank')} />
             ),
           },
         ]}
@@ -518,7 +529,12 @@ const ActiveJobsPanel = ({ http, notifications }: PanelDeps) => {
   );
 };
 
-const HistoryPanel = ({ http, notifications, jobId }: PanelDeps & { jobId: string | null }) => {
+const HistoryPanel = ({
+  http,
+  notifications,
+  jobIndexName,
+  jobId,
+}: PanelDeps & { jobIndexName: string | null; jobId: string | null }) => {
   const [history, setHistory] = useState<JobHistoryEntry[]>([]);
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(10);
@@ -527,18 +543,19 @@ const HistoryPanel = ({ http, notifications, jobId }: PanelDeps & { jobId: strin
   useEffect(() => {
     const loadHistory = async () => {
       try {
+        const historyPath =
+          jobIndexName && jobId ? API_PATHS.jobHistory(jobIndexName, jobId) : API_PATHS.history;
         const res = await http.get<{
           history?: Record<string, Omit<JobHistoryEntry, 'key' | 'duration' | 'status'>>;
-        }>(API_PATHS.history);
+        }>(historyPath);
         const historyArray = Object.entries(res.history || {}).map(([key, value]) => ({
           key,
           ...value,
           duration: value.end_time - value.start_time,
           status: value.completion_status === 0 ? 'Success' : 'Failed',
         }));
-        const filteredHistory = jobId
-          ? historyArray.filter((h) => h.job_id === jobId)
-          : historyArray;
+        const filteredHistory =
+          !jobIndexName && jobId ? historyArray.filter((h) => h.job_id === jobId) : historyArray;
         setHistory(filteredHistory.sort((a, b) => b.start_time - a.start_time));
         notifications.toasts.addSuccess('Job history loaded');
       } catch (error) {
@@ -547,7 +564,7 @@ const HistoryPanel = ({ http, notifications, jobId }: PanelDeps & { jobId: strin
     };
 
     loadHistory();
-  }, [http, jobId, notifications.toasts]);
+  }, [http, jobId, jobIndexName, notifications.toasts]);
 
   const filteredHistory = searchQuery
     ? history.filter((h) => h.job_id?.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -609,6 +626,7 @@ const HistoryPanel = ({ http, notifications, jobId }: PanelDeps & { jobId: strin
 
 const JobSchedulerDashboard = ({ http, notifications }: PanelDeps) => {
   const [selectedTab, setSelectedTab] = useState('all');
+  const [selectedJobIndexName, setSelectedJobIndexName] = useState<string | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
   const tabs = [
@@ -620,9 +638,15 @@ const JobSchedulerDashboard = ({ http, notifications }: PanelDeps) => {
   // Check URL hash for history view
   useEffect(() => {
     const hash = window.location.hash;
-    if (hash.startsWith('#/history/')) {
+    if (hash.startsWith('#/history?')) {
+      const queryParams = new URLSearchParams(hash.replace('#/history?', ''));
+      setSelectedJobIndexName(queryParams.get('job_index_name'));
+      setSelectedJobId(queryParams.get('job_id'));
+      setSelectedTab('history');
+    } else if (hash.startsWith('#/history/')) {
       const jobId = hash.replace('#/history/', '');
-      setSelectedJobId(jobId);
+      setSelectedJobIndexName(null);
+      setSelectedJobId(decodeURIComponent(jobId));
       setSelectedTab('history');
     }
   }, []);
@@ -644,7 +668,10 @@ const JobSchedulerDashboard = ({ http, notifications }: PanelDeps) => {
             isSelected={selectedTab === tab.id}
             onClick={() => {
               setSelectedTab(tab.id);
-              if (tab.id !== 'history') setSelectedJobId(null);
+              if (tab.id !== 'history') {
+                setSelectedJobIndexName(null);
+                setSelectedJobId(null);
+              }
             }}
           >
             {tab.name}
@@ -654,7 +681,12 @@ const JobSchedulerDashboard = ({ http, notifications }: PanelDeps) => {
       {selectedTab === 'all' && <AllJobsPanel http={http} notifications={notifications} />}
       {selectedTab === 'active' && <ActiveJobsPanel http={http} notifications={notifications} />}
       {selectedTab === 'history' && (
-        <HistoryPanel http={http} notifications={notifications} jobId={selectedJobId} />
+        <HistoryPanel
+          http={http}
+          notifications={notifications}
+          jobIndexName={selectedJobIndexName}
+          jobId={selectedJobId}
+        />
       )}
     </>
   );

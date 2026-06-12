@@ -86,10 +86,22 @@ export function defineRoutes(router: IRouter) {
     async (context, request, response) => {
       try {
         const client = context.core.opensearch.client.asCurrentUser;
+        const { job_index_name: jobIndexName, job_id: jobId } = request.query as {
+          job_index_name?: string;
+          job_id?: string;
+        };
+        const queryParams = new URLSearchParams();
+        if (jobIndexName) {
+          queryParams.set('job_index_name', jobIndexName);
+        }
+        if (jobId) {
+          queryParams.set('job_id', jobId);
+        }
+        const queryString = queryParams.toString();
 
         const requestOptions: any = {
           method: 'GET',
-          path: '/_plugins/_job_scheduler/api/history',
+          path: `/_plugins/_job_scheduler/api/history${queryString ? `?${queryString}` : ''}`,
         };
         const result = await client.transport.request(requestOptions);
         return response.ok({ body: result.body });
