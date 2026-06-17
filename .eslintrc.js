@@ -1,20 +1,3 @@
-const LICENSE_HEADER = `
-/*
- *   Copyright OpenSearch Contributors
- *
- *   Licensed under the Apache License, Version 2.0 (the "License").
- *   You may not use this file except in compliance with the License.
- *   A copy of the License is located at
- *
- *       http://www.apache.org/licenses/LICENSE-2.0
- *
- *   or in the "license" file accompanying this file. This file is distributed
- *   on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- *   express or implied. See the License for the specific language governing
- *   permissions and limitations under the License.
- */
-`
-
 const SPDX_LICENSE_HEADER = `
 /*
  * SPDX-License-Identifier: Apache-2.0
@@ -23,7 +6,7 @@ const SPDX_LICENSE_HEADER = `
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-`
+`;
 
 module.exports = {
   root: true,
@@ -31,10 +14,7 @@ module.exports = {
   env: {
     'cypress/globals': true,
   },
-  plugins: [
-    'cypress',
-    "unused-imports"
-  ],
+  plugins: ['cypress', 'unused-imports'],
   rules: {
     // "@osd/eslint/require-license-header": "off"
     '@osd/eslint/no-restricted-paths': [
@@ -44,7 +24,7 @@ module.exports = {
         zones: [
           {
             target: ['(public|server)/**/*'],
-            from: ['../../packages/**/*','packages/**/*'],
+            from: ['../../packages/**/*', 'packages/**/*'],
           },
         ],
       },
@@ -56,8 +36,8 @@ module.exports = {
     'cypress/no-force': 'warn',
     'cypress/no-async-tests': 'error',
     // Unused imports and variables rules
-    "no-unused-vars": "off",
-    "unused-imports/no-unused-imports": "error",
+    'no-unused-vars': 'off',
+    'unused-imports/no-unused-imports': 'error',
   },
   overrides: [
     {
@@ -66,7 +46,7 @@ module.exports = {
         '@osd/eslint/require-license-header': [
           'error',
           {
-            licenses: [ LICENSE_HEADER, SPDX_LICENSE_HEADER ],
+            licenses: [SPDX_LICENSE_HEADER],
           },
         ],
         'no-console': 0,
